@@ -12,6 +12,9 @@ int main() {
 	std::vector<double>curve = { 375,100,2000,0,0 };
 	std::vector<std::vector<double>> ps = { {0,0,0},{0,500,0} };
 	vector<double> dz = { 0,0,1 }, dx = { 1,0,0 }, origin = { 0,0,0 };
-	InsertReinforcingBar(TrimmedCurveType::LongitudinalBarCurve, curve, 25, ps, -1,origin, dz, dx);
+	InsertBuilding(1, nullptr, 1, nullptr, nullptr, 1, origin, dz, dx);
+	vector<double> storey{ 1000,1000,1000 };
+	InsertBuildingStory(1, nullptr, 1, nullptr, nullptr, 1, storey, dz, dx, GetID::BuildingLocalPlacementID.back());
+	InsertReinforcingBar(TrimmedCurveType::LongitudinalBarCurve, curve, 25, ps, GetID::floorLocalPlacementID.back(),origin, dz, dx,GetID::FloorID);
 	return 0;
 }

@@ -11,6 +11,10 @@ int GetID::TrimmedCurveID = 0;
 int GetID::ReinforcingBarID = 0;
 int GetID::MappedItemID = 0;
 int GetID::LocalPlacementID = 0;
+int GetID::FloorID = 0;
+int GetID::BuildingID = 0;
+std::vector<int> GetID::floorLocalPlacementID;
+std::vector<int> GetID::BuildingLocalPlacementID;
 const double precision = 0.001;
 
 std::unordered_map<std::string, int> longnitudal;//记录负筋形状参数所对应的sweptdisksolidid
@@ -249,7 +253,7 @@ namespace Insert2DB {
 		SqliteExecution::Instance()->insertDb(command);
 		return id;
 	}
-	int InsertReinforcingBar(TrimmedCurveType type, std::vector<double> &curve, double diameter, std::vector<std::vector<double>>point, int parentLocalID, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx)
+	int InsertReinforcingBar(TrimmedCurveType type, std::vector<double> &curve, double diameter, std::vector<std::vector<double>>point, int parentLocalID, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx,int ParentStoreyID)
 	//对应插入钢筋的所有参数，除此之外还要记录钢筋的localPlacement，也就是相当于梁的坐标系位置emmm，localplacement是需要大代价弄的
 	{
 		int barid = GetID::GetReinforcingBarID();
@@ -267,7 +271,7 @@ namespace Insert2DB {
 		{
 		case LongitudinalBarCurve: {
 			char command[100];
-			sprintf_s(command,100, "insert into IfcReinforcingBar values(%d,'%s',%d,'%s','%s','%s',%d,'%s','%s');", barid, "sadsaidbidsab", -1, "Main", "bar", "grider", localplacementid, mappids.data(),"C30");
+			sprintf_s(command,100, "insert into IfcReinforcingBar values(%d,%d,'%s','%s','%s',%d,'%s','%s',%d);", barid, -1, "Main", "bar", "grider", localplacementid, mappids.data(),"C30",ParentStoreyID);
 			SqliteExecution::Instance()->insertDb(command);
 			break;
 		}
@@ -284,6 +288,29 @@ namespace Insert2DB {
 		char command[150];
 		int id = GetID::GetLocalPlacementID();
 		sprintf_s(command,50, "insert into IfcLocalPlacement values(%d,%d,%d);", id, parentLocalID, placementid);
+		SqliteExecution::Instance()->insertDb(command);
+		return id;
+	}
+	int InsertBuilding(int id_, const char* globalID, int ownerID, const char* name, const char* description, int objectType, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx) {
+		int id = GetID::InsertBuildingID();//获取buildingID
+		if (GetID::LocalPlacementID == 0)//还没有全局坐标系,新建一个全局坐标系
+		{
+			std::vector<double>origin = { 0,0,0 }, dz = { 0,0,1 }, dx = { 1,0,0 };
+			int globalLocalPlacementID = InsertLocalPlacement(-1, origin, dz, dx);
+		}
+		int buildingPlacementID = InsertLocalPlacement(1, origin, dz, dx);
+		GetID::BuildingLocalPlacementID.push_back(buildingPlacementID);//相对于全局坐标系新建一个基于建筑物的局部坐标系。
+		char command[100];
+		sprintf_s(command, 100, "insert into IfcBuilding values(%d,%d,'%s','%s',%d,%d);", id, ownerID, name, description, objectType, buildingPlacementID);
+		SqliteExecution::Instance()->insertDb(command);
+		return id;
+	}
+	int InsertBuildingStory(int id_, const char* globalID, int ownerID, const char* name, const char* description, int objectType, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx, int parentLocalPlacementID) {
+		int id = GetID::InsertFloorID();
+		int curLocalPlacementID = InsertLocalPlacement(GetID::BuildingLocalPlacementID.back(), origin, dz, dx);
+		GetID::floorLocalPlacementID.push_back(curLocalPlacementID);	
+		char command[100];
+		sprintf_s(command, 100, "insert into IfcBuildingStory values(%d,%d,'%s','%s',%d,%d,%d);", id, ownerID, name, description, objectType, curLocalPlacementID,origin[2]);
 		SqliteExecution::Instance()->insertDb(command);
 		return id;
 	}

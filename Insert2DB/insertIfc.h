@@ -23,12 +23,14 @@ namespace Insert2DB {
 	int InsertCompositeCurve(std::vector<int> Trimmedcurve);
 	int InsertSweptDiskSlod(TrimmedCurveType type, std::vector<double> curve, double diameter);
 	int InsertMappedItem(TrimmedCurveType type, std::vector<double> curve, double diameter, std::vector<double>&point);
-	int InsertReinforcingBar(TrimmedCurveType type, std::vector<double>& curve, double diameter, std::vector<std::vector<double>>point, int parentLocalID, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx);
+	int InsertReinforcingBar(TrimmedCurveType type, std::vector<double>& curve, double diameter, std::vector<std::vector<double>>point, int parentLocalPlacementID, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx,int ParentFLoorID);
 	//对应插入钢筋的所有参数，除此之外还要记录钢筋的localPlacement，也就是相当于梁的坐标系位置emmm，localplacement是需要大价钱弄的
 	int InsertLocalPlacement(int parentLocalID,std::vector<double> &point,std::vector<double>&dz,std::vector<double>&dx);
-	
-	int InsertBuilding();
-	int InsertStory();
+	int InsertBuildingStory(int id, const char* globalID, int ownerID, const char* name, const char* description, int objectType, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx,int parentLocalPlacementID);
+	int InsertBuilding(int id, const char* globalID, int ownerID, const char* name, const char* description, int objectType, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx);
+	std::wstring ConvertChar2wstring(const char* s);
+	//int InsertBuilding();
+	//int InsertStory();
 
 }
 #endif // !INSERT@DB
