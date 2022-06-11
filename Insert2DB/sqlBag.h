@@ -24,6 +24,9 @@ public:
 		}
 	}
 
+
+
+
 	void closeDb() {
 		sqlite3_close(db);
 	}
@@ -62,6 +65,9 @@ public:
 		commands.emplace_back("delete from IfcReinforcingBar;");
 		commands.emplace_back("delete from IfcSweptDiskSolid;");
 		commands.emplace_back("delete from IfcTrimmedCurve;");
+		commands.emplace_back("delete from IfcBeam;");
+		commands.emplace_back("delete from IfcBuildingStory;");
+		commands.emplace_back("delete from IfcExtrudedAreaSolid;");
 		for (auto& i : commands) {
 			insertDb(i);
 		}

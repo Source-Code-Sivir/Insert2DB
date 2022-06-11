@@ -48,10 +48,18 @@ public:
 	static int InsertBuildingID() {
 		return ++BuildingID;
 	}
+	static int GetBeamID() {
+		return ++BeamID;
+	}
+	static int GetExtrudedAreaSolidID() {
+		return ++ExtrudedAreaSolidID;
+	}
+	static int ExtrudedAreaSolidID;
+	static int BeamID;
 	static int FloorID;
-	static std::vector<int> floorLocalPlacementID;//存储了从一层开始的所有层的LocalPlacementID
+	static std::vector<int> localPlacementIDStack;//尾元素为当前相对的LocalPlacementID，注意出栈
 	static int BuildingID;
-	static std::vector<int> BuildingLocalPlacementID;//默认就是一个
+	static std::vector<int> BuildingStoreyIDStack;//默认就是一个
 	static int ReinforcingBarID;
 	static int MappedItemID;
 	static int ShapreRepresentationID;
