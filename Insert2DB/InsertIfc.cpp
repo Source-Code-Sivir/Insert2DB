@@ -1,7 +1,10 @@
 #include"insertIfc.h"
+using namespace std;
+const double PI = 3.1415926535;
+const double sqrt2 = sqrt(2) * 0.5;
 int GetID::CircleID = 0;
 int GetID::CompositeCurveID = 0;
-int GetID::DirectionID = 7;
+int GetID::DirectionID = 10;
 int GetID::LineID = 0;
 int GetID::Placement3DID = 1;
 int GetID::PointID = 1;
@@ -22,6 +25,7 @@ const double precision = 0.001;
 std::unordered_map<std::string, int> longnitudal;//记录负筋形状参数所对应的sweptdisksolidid
 std::unordered_map<std::string, int> shears;//记录箍筋形状参数对应的sweptdisksolidid
 std::unordered_map<std::string, int> shearLinksMap;//记录箍筋形状参数对应的sweptdisksolid
+std::unordered_map<std::string, int> tiedBars;
 std::string GetInsertCommand(const char* tablename, const char* data) {
 	char res[100];
 	sprintf_s(res, 100, "Insert into %s values(%s);", tablename, data);
@@ -80,7 +84,7 @@ namespace Insert2DB {
 		}//（根2，-跟2）
 		int directionID = GetID::getDirectionID();
 		char* val = new char[100];
-		sprintf_s(val, 100, "%d,%.3f,%.3f,%.3f", directionID, direction[0], direction[1], direction[2]);
+		sprintf_s(val, 100, "%d,%.5f,%.5f,%.5f", directionID, direction[0], direction[1], direction[2]);
 		std::string command = GetInsertCommand("IfcDirection", val);
 		SqliteExecution::Instance()->insertDb(command);
 		delete[]val;
@@ -88,6 +92,9 @@ namespace Insert2DB {
 	}
 	int InsertPlacement3D(std::vector<double> point, std::vector<double> directionz, std::vector<double> directionx) {
 		int id1 = InsertPoint3D(point), id2 = InsertDirection3D(directionz), id3 = InsertDirection3D(directionx);
+		if (id1 == 1 && id2 == 5 && id3 == 1) {
+			return 1;
+		}
 		char* data = new char[100];
 		int placeid = GetID::getPlacement3DID();
 		sprintf_s(data, 100, "%d,%d,%d,%d", placeid, id1, id2, id3);
@@ -158,7 +165,7 @@ namespace Insert2DB {
 			std::vector<double> directionz(parameter.begin() + 3, parameter.begin() + 6);
 			std::vector<double> directionx(parameter.begin() + 6, parameter.end());
 			int id1 = Insert2DB::InsertCircle(point, directionz, directionx, parameter.back());
-			sprintf_s(val, 100, "%d,%d,%.2f,%.2f,%s", id, id1, begin, end, same ? "TRUE" : "FALSE");
+			sprintf_s(val, 100, "%d,%d,%.3f,%.3f,%s", id, id1, begin, end, same ? "TRUE" : "FALSE");
 			std::string command = GetInsertCommand("IfcTrimmedCurve", val);
 			SqliteExecution::Instance()->insertDb(command);
 			break;
@@ -245,37 +252,52 @@ namespace Insert2DB {
 			}
 			resid = GetID::getSweptDiskSolidID();
 
-			std::vector<int> id(8, -1);
-			//std::vector<double>point00{ -curve[0] * 0.5,0.5 * curve[1],0, 0,0,-1, -0.7071,-0.7071,0,curve[2] };
-			//id[0]  = InsertTrimmedCurve(CurveType::Circle_Curve, 0, curve[0], point00, true, 0);
+			int len4 = 75;
+			if (10 * diameter > 75) len4 = 10 * diameter;
+			std::vector<int> id(11, -1);
+			
+			std::vector<double>point0{ -curve[0] * 0.5-sqrt2*curve[2]+sqrt2*len4,0.5 * curve[1]- sqrt2 * len4-sqrt2*curve[2],0, -0.7071,0.7071,0 };
+			id[0] = InsertTrimmedCurve(CurveType::Line_Curve, 0, len4, point0, true, 0);
 
-			std::vector<double> point{ -0.5*curve[0],0.5*curve[1]+curve[2],0,1,0,0 };
-			id[0] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[0], point, true, 0);
+
+			std::vector<double>point1{ -curve[0] * 0.5,0.5 * curve[1],0, 0,0,-1, -sqrt2,-sqrt2,0,curve[2] };
+			id[1]  = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 0.75*PI, point1, true, 0);
+
+
+			/***************************从这里开始时环形箍筋文件*/
+
+			std::vector<double> point2{ -0.5*curve[0],0.5*curve[1]+curve[2],0,1,0,0 };
+			id[2] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[0], point2, true, 0);
 			
-			std::vector<double> point1={ 0.5*curve[0],0.5*curve[1],0,  0,0,-1,0,1,0,curve[2] };
-			id[1] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 1.571, point1, true, 0);
 			
-			std::vector<double> point2{ 0.5*curve[0]+curve[2],0.5*curve[1],0,0,-1,0 };
-			id[2] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[1], point2, true, 0);
-			
-			std::vector<double> point3{ 0.5 * curve[0],-0.5*curve[1],0,  0,0,-1,  1,0,0,curve[2] };
+			std::vector<double> point3{ 0.5*curve[0],0.5*curve[1],0,  0,0,-1,0,1,0,curve[2] };
 			id[3] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 1.571, point3, true, 0);
 			
-			std::vector<double> point4{ curve[0]*0.5,-0.5*curve[1]-curve[2],0,  -1,0,0 };
-			id[4] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[4], point4, true, 0);
-
-			std::vector<double> point5{ -0.5 * curve[0],-0.5 * curve[1],0,   0,0,-1,0,-1,0,curve[2]};
+			std::vector<double> point4{ 0.5*curve[0]+curve[2],0.5*curve[1],0,0,-1,0 };
+			id[4] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[1], point4, true, 0);
+			
+			std::vector<double> point5{ 0.5 * curve[0],-0.5*curve[1],0,  0,0,-1,  1,0,0,curve[2] };
 			id[5] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 1.571, point5, true, 0);
+			
+			std::vector<double> point6{ curve[0]*0.5,-0.5*curve[1]-curve[2],0,  -1,0,0 };
+			id[6] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[0], point6, true, 0);
 
-			std::vector<double> point6{ -curve[0] * 0.5-curve[2],-0.5 * curve[1],0,  0,1,0 };
-			id[6] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[1], point6, true, 0);
-
-			std::vector<double> point7{ -curve[0] * 0.5,0.5 * curve[1],0,   0,0,-1,-1,0,0,curve[2] };
+			std::vector<double> point7{ -0.5 * curve[0],-0.5 * curve[1],0,   0,0,-1,0,-1,0,curve[2]};
 			id[7] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 1.571, point7, true, 0);
+
+			std::vector<double> point8{-curve[0] * 0.5 - curve[2],-0.5 * curve[1],0,  0,0.999687,0.024992};
+			id[8] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[1], point8, true, 0);
+
+			double delta = 0.024992 * curve[1];
+			std::vector<double> point9{-curve[0] * 0.5,0.5 * curve[1],delta,   0,0,-1,-1,0,0,curve[2]};
+			id[9] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 0.75*PI, point9, true, 0);
+
+			std::vector<double> point10{ -curve[0] * 0.5+sqrt2*curve[2],0.5 * curve[1]+sqrt2*curve[2],delta,  sqrt2,-sqrt2,0 };
+			id[10] = InsertTrimmedCurve(CurveType::Line_Curve, 0, len4, point10, true, 0);
 
 			int compoid = InsertCompositeCurve(id);
 			char* command = new char[200];
-			printf("%f", diameter);
+			//printf("%f", diameter);
 			sprintf_s(command, 150, "insert into IfcSweptDiskSolid values(%d,%d,%.2f,%.2f,%.2f,%.2f);", resid, compoid, diameter, -1.0, -1.0, -1.0);
 			//std::string command = GetInsertCommand("IfcSweptDiskSolid", val);
 			SqliteExecution::Instance()->insertDb(command);
@@ -284,7 +306,44 @@ namespace Insert2DB {
 			break;
 		}
 		case TiedBarCurve:
+		{
+			std::vector<int>id(5, -1);
+			char tmp[50];
+			sprintf_s(tmp, "%d %d %d %d", curve[0], curve[1], curve[2], diameter);
+			if (tiedBars.count(tmp)) {
+				return tiedBars[tmp];
+			}
+			resid = GetID::getSweptDiskSolidID();
+			tiedBars[tmp] = resid;
+			curve[0] = 75;
+			if (10 * diameter > 75) {
+				curve[0] = 10 * diameter;
+			}
+			vector<double>point0{ -0.5 * curve[2] - sqrt2 * curve[1] + curve[0] * sqrt2,-curve[1] - sqrt2 * curve[1] - sqrt2 * curve[0],0,-sqrt2,sqrt2,0 };
+			id[0] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[0], point0, true, 0);
+
+			vector<double>point1{ -0.5 * curve[2],-curve[1],0,   0,0,-1,-sqrt2,-sqrt2,0,curve[1] };
+			id[1] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 0.75 * PI, point1, true, 0);
+
+			vector<double>point2{ -0.5 * curve[2],0,0,1,0,0 };
+			id[2] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[2], point2, true, 0);
+
+			vector<double>point3{ 0.5 * curve[2],-curve[1],0,   0,0,-1,0,1,0,curve[1] };
+			id[3] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 0.75 * PI, point3, true, 0);
+
+			vector<double> point4{ 0.5 * curve[2] + sqrt2 * curve[1],-curve[1] - sqrt2 * curve[1] ,0,-sqrt2,-sqrt2,0 };
+			id[4] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[0], point4, true, 0);
+
+			int compoid = InsertCompositeCurve(id);
+			char* command = new char[200];
+			//printf("%f", diameter);
+			sprintf_s(command, 150, "insert into IfcSweptDiskSolid values(%d,%d,%.2f,%.2f,%.2f,%.2f);", resid, compoid, diameter, -1.0, -1.0, -1.0);
+			//std::string command = GetInsertCommand("IfcSweptDiskSolid", val);
+			SqliteExecution::Instance()->insertDb(command);
+			delete[]command;
 			break;
+		}
+			
 		default:
 			break;
 		}
@@ -349,6 +408,7 @@ namespace Insert2DB {
 		{
 			std::vector<double>origin = { 0,0,0 }, dz = { 0,0,1 }, dx = { 1,0,0 };
 			int globalLocalPlacementID = InsertLocalPlacement(-1, origin, dz, dx);
+			GetID::localPlacementIDStack.push_back(globalLocalPlacementID);
 		}
 		int buildingPlacementID = InsertLocalPlacement(1, origin, dz, dx);
 		GetID::localPlacementIDStack.push_back(buildingPlacementID);//相对于全局坐标系新建一个基于建筑物的局部坐标系。
