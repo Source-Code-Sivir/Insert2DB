@@ -183,9 +183,8 @@ namespace Insert2DB {
 		std::string data;
 		for (auto i : Trimmedcurve) {
 			if (i == -1) {
-				break;
+				continue;
 			}
-
 			data += std::to_string(i);
 			data.push_back(' ');
 		}
@@ -245,7 +244,7 @@ namespace Insert2DB {
 			break;
 		}
 		case SheadLinks: {
-			char rec[50];//验证箍筋形状参数，由3个值确定，短边长度，长边长度，弯钩直径，直径
+			char rec[50];//验证箍筋形状参数，由3个值确定，短边长度，长边长度，弯钩半径，直径
 			sprintf_s(rec, 50, "%.2f,%.2f,%.2f,%d", curve[0], curve[1], curve[2], diameter);
 			if (shearLinksMap.count(rec)) {
 				return shearLinksMap[rec];
@@ -266,6 +265,8 @@ namespace Insert2DB {
 
 			/***************************从这里开始时环形箍筋文件*/
 
+			double minangle = diameter / curve[1];
+			double maxangle = sqrt(1 - minangle * minangle);
 			std::vector<double> point2{ -0.5*curve[0],0.5*curve[1]+curve[2],0,1,0,0 };
 			id[2] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[0], point2, true, 0);
 			
@@ -285,10 +286,10 @@ namespace Insert2DB {
 			std::vector<double> point7{ -0.5 * curve[0],-0.5 * curve[1],0,   0,0,-1,0,-1,0,curve[2]};
 			id[7] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 1.571, point7, true, 0);
 
-			std::vector<double> point8{-curve[0] * 0.5 - curve[2],-0.5 * curve[1],0,  0,0.999687,0.024992};
+			std::vector<double> point8{-curve[0] * 0.5 - curve[2],-0.5 * curve[1],0,  0,maxangle,minangle};
 			id[8] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[1], point8, true, 0);
 
-			double delta = 0.024992 * curve[1];
+			double delta = minangle * curve[1];
 			std::vector<double> point9{-curve[0] * 0.5,0.5 * curve[1],delta,   0,0,-1,-1,0,0,curve[2]};
 			id[9] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 0.75*PI, point9, true, 0);
 
@@ -353,8 +354,8 @@ namespace Insert2DB {
 		int id = GetID::GetMappedItemID();
 		int pointID = InsertPoint3D(point);
 		int sweptDiskID = InsertSweptDiskSlod(BarType(subtype), curve, diameter);
-		char command[150];
-		sprintf_s(command,50, "insert into IfcMappedItem values(%d,%d,'%d',%d);", id, pointID, sweptDiskID, int(type));
+		char command[600];
+		sprintf_s(command,600, "insert into IfcMappedItem values(%d,%d,'%d',%d);", id, pointID, sweptDiskID, int(type));
 		SqliteExecution::Instance()->insertDb(command);
 		return id;
 	}
@@ -372,20 +373,20 @@ namespace Insert2DB {
 			mappids += std::to_string(i);
 			mappids.push_back(' ');
 		}
-		char command[100];
+		char command[3000];
 		switch (type)
 		{
 		case LongitudinalBarCurve: {
-			sprintf_s(command,100, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "Mainbar", localplacementid, mappids.data(),"C30",ParentStoreyID);
+			sprintf_s(command,3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "Mainbar", localplacementid, mappids.data(),"C30",ParentStoreyID);
 			break;
 		}
 		case TiedBarCurve:
 		{
-			sprintf_s(command, 100, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "TiedBar", localplacementid, mappids.data(), "C30", ParentStoreyID);
+			sprintf_s(command, 3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "TiedBar", localplacementid, mappids.data(), "C30", ParentStoreyID);
 			break;
 		}
 		case SheadLinks: {
-			sprintf_s(command, 100, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "ShearLinks", localplacementid, mappids.data(), "C30", ParentStoreyID);
+			sprintf_s(command, 3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "ShearLink", localplacementid, mappids.data(), "C30", ParentStoreyID);
 			break;
 		}
 		default:

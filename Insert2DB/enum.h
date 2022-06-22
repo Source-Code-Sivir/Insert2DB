@@ -43,5 +43,10 @@ enum CurveType {
 	Line_Curve = 1,
 	Circle_Curve
 };
+enum EarthquakeResistence {
+	firstR = 1,
+	secondR,
+	thirdR,
+};
 #endif // !ENUM_H
 

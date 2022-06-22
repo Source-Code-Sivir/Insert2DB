@@ -22,16 +22,19 @@ public:
 		else {
 			fprintf(stderr, "Open successfully!\n");
 		}
+		sqlite3_exec(db, "begin;", 0, 0, 0);
 	}
 
 
 
 
 	void closeDb() {
+		sqlite3_exec(db, "commit;", 0, 0, 0);
 		sqlite3_close(db);
 	}
 	void insertDb(std::string command) {
 		char* errmsg = 0;
+
 		int rc = sqlite3_exec(db,command.data(),0,0,&errmsg);//第三个函数可以不用传 insert和delete不用给
 		if (rc != SQLITE_OK) {
 			fprintf(stderr, "Insert failed!:%s\n", errmsg);
