@@ -14,6 +14,9 @@ public:
 		return &ins;
 	}
 	void Init(std::string file) {//在init的时候已经初始化了db了，所以直接调用就行了。
+		if (db != nullptr) {
+			closeDb();
+		}
 		int rc = sqlite3_open(file.data(),&db);
 		if (rc) {
 			fprintf(stderr, "error:cannot open database:%s\n", sqlite3_errmsg(db));
@@ -22,13 +25,18 @@ public:
 		else {
 			fprintf(stderr, "Open successfully!\n");
 		}
+		sqlite3_exec(db, "begin;", 0, 0, 0);
 	}
 
+
+
 	void closeDb() {
+		sqlite3_exec(db, "commit;", 0, 0, 0);
 		sqlite3_close(db);
 	}
 	void insertDb(std::string command) {
 		char* errmsg = 0;
+
 		int rc = sqlite3_exec(db,command.data(),0,0,&errmsg);//第三个函数可以不用传 insert和delete不用给
 		if (rc != SQLITE_OK) {
 			fprintf(stderr, "Insert failed!:%s\n", errmsg);
@@ -62,12 +70,17 @@ public:
 		commands.emplace_back("delete from IfcReinforcingBar;");
 		commands.emplace_back("delete from IfcSweptDiskSolid;");
 		commands.emplace_back("delete from IfcTrimmedCurve;");
+		commands.emplace_back("delete from IfcBeam;");
+		commands.emplace_back("delete from IfcBuildingStory;");
+		commands.emplace_back("delete from IfcExtrudedAreaSolid;");
 		for (auto& i : commands) {
 			insertDb(i);
 		}
 	}
 private:
-	SqliteExecution() {};
+	SqliteExecution() {
+		db = nullptr;
+	};
 	~SqliteExecution() { closeDb(); };
 	sqlite3* db;
 };

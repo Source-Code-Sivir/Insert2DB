@@ -1,19 +1,25 @@
 #pragma once
+#include"enum.h"
+#include<string>
 class Shape {
+public:
+	ShapeType shape_type;
+	std::string parameter;
 	virtual const char* className()
 	{
 		return "Shape";
 	}
 };
-class Rectangular :public Shape
+class Rectangular_Shape :public Shape
 {
+public:
 	virtual const char* className()
 	{
 		return "Rectangular";
 	}
-	double length, wide;
+	double height, wide;
 	double area()
 	{
-		return length * wide;
+		return height * wide;
 	}
 };
