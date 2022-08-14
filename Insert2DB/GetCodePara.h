@@ -8,6 +8,9 @@ inline double GetHookDia(int degree, int diameter) {
 inline int Getlabe(ConcreteType ctype, SteelType stype, EnvironmentType eType,int diameter) {
 	return 33 * diameter;
 }
+inline int Getlab(ConcreteType ctype, SteelType stype, int diameter) {
+	return 26 * diameter;
+}
 inline int GetLaE(SteelType steel, EarthquakeResistence earthqR, ConcreteType cType, int diameter) {
 	return 30 * diameter;
 }

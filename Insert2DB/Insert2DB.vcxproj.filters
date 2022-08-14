@@ -45,6 +45,9 @@
     <ClInclude Include="GetID.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="GetModelInfo.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="InsertIfc.cpp">
@@ -55,6 +58,9 @@
     </ClCompile>
     <ClCompile Include="CalculateIfc.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GetModelInfo.cpp">
+      <Filter>头文件</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

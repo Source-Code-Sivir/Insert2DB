@@ -11,6 +11,30 @@ vector<double> sheardz{ 0,0,1 }, sheardx{ 1,0,0 };
 vector<double> tieddz{ 0,sqrt(2) / 2,sqrt(2) / 2 }, tieddx{ 1,0,0 };
 vector<double> rightdz{ 1,0,0 }, rightdx{ 0,0,-1 }, rightbotdz{ -1,0,0 }, rightbotdx{ 0,0,-1 };
 
+void Component_Beam::handlecolumn() {//处理column的长度
+	if (columns_len.size() == 0) {
+		columns_len.resize(spans_info.size() + 1);
+		//columns_len[0] = spans_info;
+	}
+	for (int i = 0; i < spans_info.size(); i++) {
+		double len1 = directionz[0] * abs(spans_info[i].xstartoffset) + directionz[1] * abs(spans_info[i].ystartoffset);
+		double len2 = directionz[0] * abs(spans_info[i].xendoffset) + directionz[1] * abs(spans_info[i].yendoffset);
+		columns_len[i] += len1;
+		columns_len[i + 1] += len2;
+	}
+	auto tmp = static_cast<Rectangular_Shape*> (section);
+	height = tmp->height;
+	width = tmp->wide;
+	span_begin_point.resize(spans_info.size());
+	for (int i = 0; i < span_begin_point.size(); i++) {
+		if (i == 0) {
+			span_begin_point[i] = 0;
+		}
+		else {
+			span_begin_point[i] = span_begin_point[i - 1] + spans_clear_len[i - 1] + columns_len[i];
+		}
+	}
+}
 void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 	int a = spans_info.size() - 1;
 	SpanBarInfo& bar_info = spans_info[a].span_bar_info;
@@ -23,27 +47,35 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 	int width = shape->wide, height = shape->height;
 	int protect_thick = getProtectThick(environment_type, ComponentType::Beam);
 	int curbegin = span_begin_point[a] + clear_span_len;
+	int type1 = spans_info[a].pt1Type, type2 = spans_info[a].pt2Type;
 	//上右角部
 	for (int i = 0; i < top_right.size(); i++) {
 		BasicBarInfo& curbar_info = top_right[i];
 		int LaE = GetLaE(curbar_info.BarType, earthquake_resistence, concrete_type, curbar_info.diameter);
 		int labE = Getlabe(concrete_type, curbar_info.BarType, environment_type, curbar_info.diameter);
+		int lab = Getlab(concrete_type, curbar_info.BarType, curbar_info.diameter);
 		double diameter = curbar_info.diameter;
+
 		switch (i)
 		{
 		case 0: {
 			vector<vector<double>> insert_point(2, vector<double>(3));
-			insert_point[0][0] = -(curbegin + 0.4 * labE);
-			insert_point[0][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
+			
+			insert_point[0][0] = -(curbegin + 0.4 * labE-2*diameter);
+			insert_point[0][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * diameter;
 			insert_point[0][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15;
+
+			if (type2 == 2) {
+				insert_point[0][0] = -(curbegin + 0.35 * lab-2*diameter);
+			}
 
 			insert_point[1][0] = insert_point[0][0];
 			insert_point[1][1] = insert_point[0][1];
 			insert_point[1][2] = -insert_point[0][2];
 		
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len-max(spans_clear_len[a],spans_clear_len[a-1])/3, 0, 0 };
-			
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, storey);
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len-max(spans_clear_len[a],spans_clear_len[a-1])/3-2*diameter, 0, 0 };
+			//printf("%d", storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, id);
 			break;
 		}
 		case 1: {//第一排中部钢筋
@@ -51,18 +83,29 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
 			vector<vector<double>> insert_point(barnum, vector<double>(3));
 			for (int i = 0; i < barnum; i++) {
-
-				insert_point[i][0] = -(curbegin + 0.4 * labE);
+				if (type2 == 2) {
+					insert_point[i][0] = -(curbegin + 0.35 * lab - 2 * diameter);
+				}
+				else {
+					insert_point[i][0] = -(curbegin + 0.4 * labE - 2 * diameter);
+				}
 				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 			}
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 3,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, storey);
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 3-2*diameter,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, id);
+			break;
 		}
 		case 2: {//第二排角部钢筋
 			int d = max(top_right[0].diameter, 25);
 			vector<vector<double>> insert_point(2, vector<double>(3));
-			insert_point[0][0] =-(curbegin + 0.4 * labE-30);
+			if (type2 == 2) {
+				insert_point[0][0] = -(curbegin + 0.35 * lab-30);
+			}
+			else {
+				insert_point[0][0] = -(curbegin + 0.4 * labE - 4 * diameter);
+			}
+			//insert_point[0][0] = -(curbegin + 0.4 * labE - 2 * diameter-30);
 			insert_point[0][1] = 0.5 * height - protect_thick - shearlinkDiameter - 2* d;
 			insert_point[0][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15;
 
@@ -70,8 +113,8 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 			insert_point[1][1] = insert_point[0][1];
 			insert_point[1][2] = -insert_point[0][2];
 
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + 0.25 * clear_span_len ,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, storey);//默认是一层
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + 0.25 * clear_span_len - 2 * diameter,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, id);//默认是一层
 			break;
 		}
 		case 3: {//第二排中部钢筋
@@ -80,12 +123,16 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
 			vector<vector<double>> insert_point(barnum, vector<double>(3));
 			for (int i = 0; i < barnum; i++) {
-				insert_point[i][0] = -(curbegin + 0.4 * labE-30);
+				if (type2 == 2) {
+					insert_point[i][0] = -(curbegin + 0.35 * lab - 4 * diameter );
+				}else
+					insert_point[i][0] = -(curbegin + 0.4 * labE - 2 * diameter-30);
 				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 2 * d;
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 			}
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 4,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, storey);
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 4 - 2 * diameter,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, id);
+			break;
 		}
 		default:
 			break;
@@ -97,6 +144,8 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 		BasicBarInfo& curbar_info = bot_right[i];
 		int LaE = GetLaE(curbar_info.BarType, earthquake_resistence, concrete_type, curbar_info.diameter);
 		int labE = Getlabe(concrete_type, curbar_info.BarType, environment_type, curbar_info.diameter);
+		int lab = Getlab(concrete_type, curbar_info.BarType, curbar_info.diameter);
+		SteelType bar_type = curbar_info.BarType;
 		if (curbar_info.diameter == 0) {
 			break;
 		}
@@ -107,16 +156,32 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 			double diameter = curbar_info.diameter;
 			int tmpmax = max(double(LaE), 0.5 * columns_len[a] + 5 * diameter);
 			vector<vector<double>> insert_point(2, vector<double>(3));
-			insert_point[0][0] = -(curbegin + 0.4 * labE);
+			insert_point[0][0] = -(curbegin + 0.4 * labE-2*diameter);
 			insert_point[0][1] = 0.5 * height - protect_thick - shearlinkDiameter -0.5*diameter;
 			insert_point[0][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15;
 
+			if (type2 == 2) {
+				if (bar_type == SteelType::HPB300 || bar_type == SteelType::HPB335) {
+					insert_point[0][0] = -(curbegin + 12 * diameter);
+				}else
+					insert_point[0][0] = -(curbegin + 15 * diameter);
+			}
 			insert_point[1][0] = insert_point[0][0];
 			insert_point[1][1] = insert_point[0][1];
 			insert_point[1][2] = -insert_point[0][2];
 			
 			vector<double> curve{ 15 * diameter,4 * diameter / 2, clear_span_len + tmpmax+0.4*LaE,0,0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightbotdz, rightbotdx, storey);
+			if (type2 == 2) {
+				curve[0] = 0;
+				curve[1] = 0;
+				if (bar_type == SteelType::HPB300 || bar_type == SteelType::HPB335) {
+					curve[2] = clear_span_len + 30 * diameter;
+				}
+				else {
+					curve[2] = clear_span_len + 24 * diameter;
+				}
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightbotdz, rightbotdx, id);
 			break;
 		}
 		case 1: {//第一排中部钢筋
@@ -126,13 +191,20 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 			int tmpmax = max(double(LaE), 0.5 * columns_len[a] + 5 * diameter);
 			vector<vector<double>> insert_point(barnum, vector<double>(3));
 			for (int i = 0; i < barnum; i++) {
-				insert_point[i][0] = -(curbegin + 0.4 * labE);
+				insert_point[i][0] = -(curbegin + 0.4 * labE - 2 * diameter);
+				if (type2 == 2) {
+					insert_point[i][0] = -(curbegin + 12 * diameter);
+				}
 				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 
 			}
 			vector<double> curve{ 15 * diameter,4 * diameter / 2, clear_span_len + tmpmax + 0.4 * LaE,0,0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightbotdz, rightbotdx, storey);
+			if (type2 == 2) {
+				curve[0] = curve[1] = 0;
+				curve[2] = clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightbotdz, rightbotdx, id);
 			break;
 		}
 		case 2: {//第二排角部钢筋
@@ -141,15 +213,22 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 			vector<vector<double>> insert_point(2, vector<double>(3));
 			int tmpmax = max(double(LaE), 0.5 * columns_len[a] + 5 * diameter);
 
-			insert_point[0][0] = -(curbegin + 0.4 * labE-40);
+			insert_point[0][0] = -(curbegin + 0.4 * labE-40 - 2 * diameter);
 			insert_point[0][1] = 0.5 * height - protect_thick - shearlinkDiameter - 2*d;
 			insert_point[0][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15;
-
+			if (type2 == 2) {
+				insert_point[0][0] = -(curbegin + 12 * diameter);
+			}
 			insert_point[1][0] = insert_point[0][0];
 			insert_point[1][1] = insert_point[0][1];
 			insert_point[1][2] = -insert_point[0][2];
+
 			vector<double> curve{ 15 * diameter,4 * diameter / 2, clear_span_len + tmpmax + 0.4 * LaE,0,0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightbotdz, rightbotdx, storey);
+			if (type2 == 2) {
+				curve[0] = curve[1] = 0;
+				curve[2] = clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightbotdz, rightbotdx, id);
 			break;
 		}
 		case 3: {//第二排中部钢筋
@@ -161,13 +240,21 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 40) / (barnum + 1);
 			vector<vector<double>> insert_point(barnum, vector<double>(3));
 			for (int i = 0; i < barnum; i++) {
-				insert_point[i][0] = -(curbegin + 0.4 * labE-40);
+				insert_point[i][0] = -(curbegin + 0.4 * labE-40 - 2 * diameter);
 				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter - 2 * d;
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
+				if (type2 == 2) {
+					insert_point[i][0] = -(curbegin + 12 * diameter);
+				}
 
 			}
 			vector<double> curve{ 15 * diameter,4 * diameter / 2, clear_span_len + tmpmax + 0.4 * LaE,0,0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightbotdz, rightbotdx, storey);
+			if (type2 == 2) {
+				curve[0] = curve[1] = 0;
+				curve[2] = clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightbotdz, rightbotdx, id);
+			break;
 		}
 		default:
 			break;
@@ -176,8 +263,7 @@ void Component_Beam::HandleRightSide() {//处理右边跨的钢筋
 	//处理下左部钢筋
 	
 }
-
-void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
+void Component_Beam::handleSignal() {//处理简支梁的钢筋
 	SpanBarInfo& bar_info = spans_info[0].span_bar_info;
 	int clear_span_len = spans_clear_len[0];
 	int shearlinkDiameter = bar_info.ShearLinks.LeftZoneInfo.Diameter;
@@ -189,15 +275,180 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 	//上左角部
 	for (int i = 0; i < top_left.size(); i++) {
 		BasicBarInfo& curbar_info = top_left[i];
-		int LaE = GetLaE(curbar_info.BarType, earthquake_resistence,concrete_type, curbar_info.diameter);
+		int LaE = GetLaE(curbar_info.BarType, earthquake_resistence, concrete_type, curbar_info.diameter);
 		int labE = Getlabe(concrete_type, curbar_info.BarType, environment_type, curbar_info.diameter);
 		double diameter = curbar_info.diameter;
+		int lab = Getlab( concrete_type, curbar_info.BarType, diameter);
+		int type1 = spans_info[0].pt1Type, type2 = spans_info[0].pt2Type;
+		switch (i)
+		{
+		case 0: {//第一排角部钢筋//负筋在yz平面内 x为延伸长度 不懂 //暂时只支持矩形平面
+			vector<vector<double>> insert_point{ {-0.4 * labE+2.5*diameter,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,0.5 * width - protect_thick - shearlinkDiameter - 15},{-0.4 * labE+2.5*diameter,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + 2 * clear_span_len / 3,  0, 0 };
+			if (type1 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -0.35 * lab + 2.5 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);//默认是一层
+			break;
+		}
+		case 1: {//第一排中部钢筋
+			int barnum = curbar_info.numofRebar;
+			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
+			vector<vector<double>> insert_point(barnum, vector<double>(3));
+			for (int i = 0; i < barnum; i++) {
+				insert_point[i][0] = -0.4 * labE+2.5*diameter;
+				if (type1 == 2) {
+					insert_point[i][0]  = -0.35 * lab + 2.5 * diameter;
+				}
+				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
+				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
+			}
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 3,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
+			break;
+		}
+		case 2: {//第二排角部钢筋
+			int d = max(top_left[0].diameter, 25);
+			vector<vector<double>> insert_point{ {-0.4 * labE + 40,
+				0.5 * height - 2 * d - protect_thick - shearlinkDiameter,
+				0.5 * width - protect_thick - shearlinkDiameter - 15},
+				{-0.4 * labE + 40,
+				0.5 * height - protect_thick - shearlinkDiameter - 2 * d,
+				-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
+			if (type1 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -0.35 * lab + 2.5 * diameter +25;
+			}
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + 0.25 * clear_span_len ,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);//默认是一层
+			break;
+		}
+		case 3: {//第二排中部钢筋
+			int d = max(top_left[0].diameter, 25);
+			int barnum = curbar_info.numofRebar;
+			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
+			vector<vector<double>> insert_point(barnum, vector<double>(3));
+			for (int i = 0; i < barnum; i++) {
+				insert_point[i][0] = -0.4 * labE + 40;
+				if (type1 == 2) {
+					insert_point[i][0] =-0.35 * lab + 2.5 * diameter+25;
+				}
+				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 2 * d;
+				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
+			}
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 4,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+	//上中没有 处理上右 
+
+	LongitudinalBarInfo& top_right = bar_info.TopRight;
+	int curbegin = span_begin_point[0] + clear_span_len;
+	for (int i = 0; i < top_right.size(); i++) {
+		BasicBarInfo& curbar_info = top_right[i];
+		int LaE = GetLaE(curbar_info.BarType, earthquake_resistence, concrete_type, curbar_info.diameter);
+		int labE = Getlabe(concrete_type, curbar_info.BarType, environment_type, curbar_info.diameter);
+		double diameter = curbar_info.diameter;
+		int lab = Getlab(concrete_type, curbar_info.BarType, diameter);
+		int type2 = spans_info[0].pt2Type;
+		switch (i)
+		{
+		case 0: {
+			vector<vector<double>> insert_point(2, vector<double>(3));
+			insert_point[0][0] = -(curbegin + 0.4 * labE);
+			insert_point[0][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
+			insert_point[0][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15;
+
+			insert_point[1][0] = insert_point[0][0];
+			insert_point[1][1] = insert_point[0][1];
+			insert_point[1][2] = -insert_point[0][2];
+			if (type2 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -(curbegin + 0.35 * lab-2.5*diameter);
+			}
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * lab +spans_clear_len[0] / 3, 0, 0 };
+
+			//printf("%d", storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, id);
+			break;
+		}
+		case 1: {//第一排中部钢筋
+			int barnum = curbar_info.numofRebar;
+			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
+			vector<vector<double>> insert_point(barnum, vector<double>(3));
+			for (int i = 0; i < barnum; i++) {
+
+				insert_point[i][0] = -(curbegin + 0.4 * labE);
+				if (type2 == 2) {
+					insert_point[i][0] = -(curbegin + 0.35 * lab - 2.5 * diameter);
+				}
+				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
+				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
+			}
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 3,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, id);
+			break;
+		}
+		case 2: {//第二排角部钢筋
+			int d = max(top_right[0].diameter, 25);
+			vector<vector<double>> insert_point(2, vector<double>(3));
+			insert_point[0][0] = -(curbegin + 0.4 * labE - 30);
+			insert_point[0][1] = 0.5 * height - protect_thick - shearlinkDiameter - 2 * d;
+			insert_point[0][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15;
+
+			insert_point[1][0] = insert_point[0][0];
+			insert_point[1][1] = insert_point[0][1];
+			insert_point[1][2] = -insert_point[0][2];
+			if (type2 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -(curbegin + 0.35 * lab - 2.5 * diameter-25);
+			}
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + 0.25 * clear_span_len ,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, id);//默认是一层
+			break;
+		}
+		case 3: {//第二排中部钢筋
+			int d = max(top_right[0].diameter, 25);
+			int barnum = curbar_info.numofRebar;
+			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
+			vector<vector<double>> insert_point(barnum, vector<double>(3));
+			for (int i = 0; i < barnum; i++) {
+				insert_point[i][0] = -(curbegin + 0.4 * labE - 30);
+				if (type2 == 2) {
+					insert_point[i][0]  = -(curbegin + 0.35 * lab - 2.5 * diameter - 25);
+				}
+				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 2 * d;
+				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
+			}
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 4,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, rightdz, rightdx, id);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+	//处理下左部钢筋
+	LongitudinalBarInfo& botleft = bar_info.BotLeft;
+	for (int i = 0; i < botleft.size(); i++) {
+		BasicBarInfo& curbar_info = botleft[i];
+		int LaE = GetLaE(curbar_info.BarType, earthquake_resistence, concrete_type, curbar_info.diameter);
+		int labE = Getlabe(concrete_type, curbar_info.BarType, environment_type, curbar_info.diameter);
+		double diameter = curbar_info.diameter;
+		double anchor = max(double(LaE), 0.5 * columns_len[i + 1] + 5 * diameter);
+		int type1 = spans_info[0].pt1Type;
 		switch (i)
 		{
 		case 0: {//第一排角部钢筋//负筋在yz平面内 x为延伸长度 不懂 //暂时只支持矩形平面
 			vector<vector<double>> insert_point{ {-0.4 * labE,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,0.5 * width - protect_thick - shearlinkDiameter - 15},{-0.4 * labE,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + 2 * clear_span_len / 3,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);//默认是一层
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, clear_span_len+0.8*labE,  2*diameter, 15*diameter };
+			if (type1 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -12 * diameter;
+				curve[0] = curve[1] = 0;
+				curve[2] = clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);//默认是一层
 			break;
 		}
 		case 1: {//第一排中部钢筋
@@ -208,9 +459,115 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 				insert_point[i][0] = -0.4 * labE;
 				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
+				if (type1 == 2) {
+					insert_point[i][0] = -12 * diameter;
+				}
 			}
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 3,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, clear_span_len + 0.8 * labE,  2 * diameter, 15 * diameter };
+			if (type1 == 2) {
+				curve[0] = curve[1] = 0;
+				curve[2] = clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);
+			break;
+		}
+		case 2: {//第二排角部钢筋
+			int d = max(botleft[0].diameter, 25);
+			vector<vector<double>> insert_point{ {-0.4 * labE + 40,
+				0.5 * height - 2 * d - protect_thick - shearlinkDiameter,
+				0.5 * width - protect_thick - shearlinkDiameter - 15},
+				{-0.4 * labE + 40,
+				0.5 * height - protect_thick - shearlinkDiameter - 2 * d,
+				-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, clear_span_len + 0.8 * labE-60,  2 * diameter, 15 * diameter };
+			if (type1 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -12 * diameter;
+				curve[0] = curve[1] = 0;
+				curve[2] = clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);//默认是一层
+			break;
+		}
+		case 3: {//第二排中部钢筋
+			int d = max(botleft[0].diameter, 25);
+			int barnum = curbar_info.numofRebar;
+			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
+			vector<vector<double>> insert_point(barnum, vector<double>(3));
+			for (int i = 0; i < barnum; i++) {
+				insert_point[i][0] = -0.4 * labE + 40;
+				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 2 * d;
+				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
+				if (type1 == 2) {
+					insert_point[i][0] = -12 * diameter;
+				}
+			}
+			vector<double> curve{ 15 * diameter,4 * diameter / 2, clear_span_len + 0.8 * labE-60,  2 * diameter, 15 * diameter };
+			if (type1 == 2) {
+				curve[0] = curve[1] = 0;
+				curve[2] = clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+}
+void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
+	SpanBarInfo& bar_info = spans_info[0].span_bar_info;
+	int clear_span_len = spans_clear_len[0];
+	int shearlinkDiameter = bar_info.ShearLinks.LeftZoneInfo.Diameter;
+
+	int ln = max(spans_clear_len[0], spans_clear_len[1]);
+	LongitudinalBarInfo& top_left = bar_info.TopLeft;
+	Rectangular_Shape* shape = static_cast<Rectangular_Shape*>(section);
+	int protect_thick = getProtectThick(environment_type, ComponentType::Beam);
+	//上左角部
+	int type1 = spans_info[0].pt1Type, type2 = spans_info[0].pt2Type;
+	for (int i = 0; i < top_left.size(); i++) {
+		BasicBarInfo& curbar_info = top_left[i];
+		int LaE = GetLaE(curbar_info.BarType, earthquake_resistence,concrete_type, curbar_info.diameter);
+		int labE = Getlabe(concrete_type, curbar_info.BarType, environment_type, curbar_info.diameter);
+		SteelType steel_type = curbar_info.BarType;
+		
+		double diameter = curbar_info.diameter;
+		int lab = Getlab(concrete_type, steel_type, diameter);
+		switch (i)
+		{
+		case 0: {//第一排角部钢筋//负筋在yz平面内 x为延伸长度 不懂 //暂时只支持矩形平面
+			vector<vector<double>> insert_point{ {-0.4 * labE,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,0.5 * width - protect_thick - shearlinkDiameter - 15},{-0.4 * labE,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
+			if (type1 == 2) {
+				insert_point[0][0] = -0.35 * lab + 2*diameter;
+				insert_point[1][0] = insert_point[0][0];
+			}
+			vector<double> curve{ 12.5 * diameter,4 * diameter / 2, 0.4 * labE + 2 * clear_span_len / 3,  0, 0 };
+			
+			if (type1 == 2) {
+				curve[1] = curve[0] = 0;
+				curve[2] = 0.35 * lab + 2 * clear_span_len / 3;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);//默认是一层
+			break;
+		}
+		case 1: {//第一排中部钢筋
+			int barnum = curbar_info.numofRebar;
+			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
+			vector<vector<double>> insert_point(barnum, vector<double>(3));
+			for (int i = 0; i < barnum; i++) {
+				insert_point[i][0] = -0.4 * labE;
+				if (type1 == 2) {
+					insert_point[i][0] = -0.35 * lab + 2 * diameter;
+				}
+				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
+				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
+			}
+			vector<double> curve{ 12.5 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 3,  0, 0 };
+			if (type1 == 2) {
+				curve[2] = 0.35 * lab + clear_span_len / 3;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
+			break;
 		}
 		case 2: {//第二排角部钢筋
 			int d = max(top_left[0].diameter, 25);
@@ -220,8 +577,11 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 				{-0.4 * labE+40,
 				0.5 * height - protect_thick - shearlinkDiameter -2*d,
 				-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + 0.25 * clear_span_len ,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);//默认是一层
+			if (type1 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -0.35 * lab + 2 * diameter + 40;
+			}
+			vector<double> curve{ 12.5 * diameter,4 * diameter / 2, 0.4 * labE + 0.25 * clear_span_len ,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);//默认是一层
 			break;
 		}
 		case 3: {//第二排中部钢筋
@@ -230,12 +590,15 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
 			vector<vector<double>> insert_point(barnum, vector<double>(3));
 			for (int i = 0; i < barnum; i++) {
-				insert_point[i][0] = -0.4 * labE+40;
+				insert_point[i][0] = -0.4 * labE + 40;
+				if (type1 == 2)
+					insert_point[i][0] = -0.35 * lab + 40 + 2 * diameter;
 				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter-2*d;
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 			}
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 4,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);
+			vector<double> curve{ 12.5 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len / 4,  0, 0 };
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
+			break;
 		}
 		default:
 			break;
@@ -265,7 +628,7 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 			
 			//{ {,,},{-0.4 * labE,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
 			vector<double> curve{ 0,0, spans_clear_len[0]/3+spans_clear_len[1]*2/ 3 + columns_len[1],0,0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
 			break;
 		}
 		case 1: {//第一排中部钢筋
@@ -281,7 +644,8 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 
 			}
 			vector<double> curve{ 0,0,0.66667 *ln  + columns_len[1],0,0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
+			break;
 		}
 		case 2: {//第二排角部钢筋
 			int d = max(25, top_right[0].diameter);
@@ -295,7 +659,7 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 			insert_point[1][2] = -insert_point[0][2];
 			
 			vector<double> curve{ 0,0,0.5* ln + columns_len[1],0,0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
 			break;
 		}
 		case 3: {//第二排中部钢筋
@@ -311,7 +675,8 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 
 			}
 			vector<double> curve{ 0,0,0.5* ln + columns_len[1],0,0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
+			break;
 		}
 		default:
 			break;
@@ -324,13 +689,21 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 		int LaE = GetLaE(curbar_info.BarType, earthquake_resistence, concrete_type, curbar_info.diameter);
 		int labE = Getlabe(concrete_type, curbar_info.BarType, environment_type, curbar_info.diameter);
 		double diameter = curbar_info.diameter;
+		int lab = Getlab(concrete_type, curbar_info.BarType, diameter);
 		double anchor = max(double(LaE), 0.5 * columns_len[i + 1] + 5 * diameter);
 		switch (i)
 		{
 		case 0: {//第一排角部钢筋//负筋在yz平面内 x为延伸长度 不懂 //暂时只支持矩形平面
 			vector<vector<double>> insert_point{ {-0.4 * labE,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,0.5 * width - protect_thick - shearlinkDiameter - 15},{-0.4 * labE,0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter,-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len +anchor,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, storey);//默认是一层
+			if (type1 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -12 * diameter;
+			}
+			vector<double> curve{ 12.5 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len +anchor,  0, 0 };
+			if (type1 == 2) {
+				curve[0] = curve[1] = 0;
+				curve[2] = 24 * diameter + clear_span_len;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);//默认是一层
 			break;
 		}
 		case 1: {//第一排中部钢筋
@@ -339,11 +712,20 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 			vector<vector<double>> insert_point(barnum, vector<double>(3));
 			for (int i = 0; i < barnum; i++) {
 				insert_point[i][0] = -0.4 * labE;
+				if (type1 == 2) {
+					insert_point[i][0] = -12 * diameter + 40;
+				}
 				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * curbar_info.diameter;
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 			}
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len + anchor,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, storey);
+			vector<double> curve{ 12.5 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len + anchor,  0, 0 };
+			if (type1 == 2) {
+				curve[0] = 0;
+				curve[1] = 0;
+				curve[2] = 0.35 * lab + clear_span_len + 12 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);
+			break;
 		}
 		case 2: {//第二排角部钢筋
 			int d = max(botleft[0].diameter, 25);
@@ -353,8 +735,16 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 				{-0.4 * labE+40,
 				0.5 * height - protect_thick - shearlinkDiameter - 2 * d,
 				-(0.5 * width - protect_thick - shearlinkDiameter - 15)} };
-			vector<double> curve{ 15 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len + anchor ,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, storey);//默认是一层
+			if (type1 == 2) {
+				insert_point[0][0] = insert_point[1][0] = -12*diameter+30;
+			}
+			vector<double> curve{ 12.5 * diameter,4 * diameter / 2, 0.4 * labE + clear_span_len + anchor ,  0, 0 };
+			if (type1 == 2) {
+				curve[0] = 0;
+				curve[1] = 0;
+				curve[2] =   clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);//默认是一层
 			break;
 		}
 		case 3: {//第二排中部钢筋
@@ -364,11 +754,20 @@ void Component_Beam::HandleLeftSide() {//处理左边跨的钢筋
 			vector<vector<double>> insert_point(barnum, vector<double>(3));
 			for (int i = 0; i < barnum; i++) {
 				insert_point[i][0] = -0.4 * labE+40;
+				if (type1 == 2) {
+					insert_point[i][0] = -12*diameter + 40;
+				}
 				insert_point[i][1] = 0.5 * height - protect_thick - shearlinkDiameter  - 2 * d;
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 			}
-			vector<double> curve{ 15 * diameter,4 * diameter / 2,0.4 * labE + clear_span_len + anchor,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, storey);
+			vector<double> curve{ 12.5 * diameter,4 * diameter / 2,0.4 * labE + clear_span_len + anchor,  0, 0 };
+			if (type1 == 2) {
+				curve[0] = 0;
+				curve[1] = 0;
+				curve[2] =  clear_span_len + 24 * diameter;
+			}
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);
+			break;
 		}
 		default:
 			break;
@@ -384,6 +783,7 @@ void Component_Beam::HandleMid(int spamNo) {
 	int protect_thick = getProtectThick(environment_type, ComponentType::Beam);
 	LongitudinalBarInfo& topright = cur_span_barinfo.TopRight;
 	int shearlinkDiameter = cur_span_barinfo.ShearLinks.LeftZoneInfo.Diameter;
+	//printf("%d", topright.size());
 	for (int pos = 0; pos < topright.size(); pos++) {
 		switch (pos)
 		{
@@ -398,11 +798,16 @@ void Component_Beam::HandleMid(int spamNo) {
 			insert_points[1][1] = 0.5 * height - protect_thick - shearlinkDiameter - 0.5 * topright[0].diameter;
 			insert_points[1][2] = -(0.5 * width - protect_thick - shearlinkDiameter - 15);
 
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, topright[0].diameter, insert_points, origin, Topdz, Topdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, topright[0].diameter, insert_points, origin, Topdz, Topdx, id);
+			break;
 		}
 		case 1: {//第一排中部
 			int diameter = topright[1].diameter;
+			if (diameter == 0) {
+				break;
+			}
 			int barnum = topright[1].numofRebar;
+			printf(" %d %d %d %d\n",topright.size(), barnum,spamNo,id);
 			double bar_span = (width - 2 * protect_thick - 2 * shearlinkDiameter - 45) / (barnum + 1);
 			vector<vector<double>> insert_point(barnum, vector<double>(3));
 			for (int i = 0; i < barnum; i++) {
@@ -411,7 +816,8 @@ void Component_Beam::HandleMid(int spamNo) {
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 			}
 			vector<double> curve{0,0, ln*0.6666667+columns_len[spamNo + 1],  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
+			break;
 		}
 		case 2: {//第二排角部钢筋
 			int diameter = topright[2].diameter;
@@ -424,7 +830,7 @@ void Component_Beam::HandleMid(int spamNo) {
 			insert_points[1][1] = 0.5 * height - protect_thick - shearlinkDiameter -2*d;
 			insert_points[1][2] = -(0.5 * width - protect_thick - shearlinkDiameter - 15);
 			vector<double> curve{ 0,0, 0.5*ln+columns_len[spamNo +1] ,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_points, origin, Topdz, Topdx, storey);//默认是一层
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_points, origin, Topdz, Topdx, id);//默认是一层
 			break;
 		}
 		case 3: {//第二排中部钢筋
@@ -439,7 +845,8 @@ void Component_Beam::HandleMid(int spamNo) {
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 			}
 			vector<double> curve{ 0,0, 0.5 * ln + columns_len[spamNo + 1],  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Topdz, Topdx, id);
+			break;
 		}
 		default:
 			break;
@@ -465,7 +872,7 @@ void Component_Beam::HandleMid(int spamNo) {
 			insert_point[1][2] = -insert_point[0][2];
 	
 			vector<double> curve{ 0,0, anchor+spans_clear_len[spamNo]+anchor,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, storey);//默认是一层
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);//默认是一层
 			break;
 		}
 		case 1: {//第一排中部钢筋
@@ -478,7 +885,7 @@ void Component_Beam::HandleMid(int spamNo) {
 				insert_point[j][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (j + 1) * bar_span;
 			}
 			vector<double> curve{ 0,0, anchor + spans_clear_len[spamNo] + anchor,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);
 			break;
 		}
 		case 2: {//第二排角部钢筋
@@ -491,7 +898,7 @@ void Component_Beam::HandleMid(int spamNo) {
 			insert_point[1][1] = insert_point[0][1];
 			insert_point[1][2] = -insert_point[1][2];
 			vector<double> curve{ 0,0, anchor + spans_clear_len[spamNo] + anchor,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, storey);//默认是一层
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);//默认是一层
 			break;
 		}
 		case 3: {//第二排中部钢筋
@@ -505,7 +912,8 @@ void Component_Beam::HandleMid(int spamNo) {
 				insert_point[i][2] = 0.5 * width - protect_thick - shearlinkDiameter - 15 - (i + 1) * bar_span;
 			}
 			vector<double> curve{ 0,0, anchor + spans_clear_len[spamNo] + anchor,  0, 0 };
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, curve, diameter, insert_point, origin, Botdz, Botdx, id);
+			break;
 		}
 		default:
 			break;
@@ -514,9 +922,10 @@ void Component_Beam::HandleMid(int spamNo) {
 }
 
 
-void Component_Beam::CalculateBeam() {
+void Component_Beam::CalculateBeam() {//仅支持矩形梁
+	handlecolumn();
 	vector<double>extrudedDirecion{0,0,1};
-	InsertBeam(1, begin, directionz, directionx, section->shape_type, section->parameter, extrudedDirecion, len);
+	id = InsertBeam(1, begin, directionz, directionx, ShapeType::Rectangular, section->parameter, extrudedDirecion, len);
 	int n = spans_info.size();
 	int protect_thick = getProtectThick(this->environment_type, ComponentType::Beam);
 	
@@ -549,7 +958,7 @@ void Component_Beam::CalculateBeam() {
 			shearsShape[2] = 2.25 * shearlinkDiameter;//形状一律用半径
 			shearsShape[0] = width - 6 * shearlinkDiameter - 2 * protect_thick;
 			shearsShape[1] = height - 6 * shearlinkDiameter - 2 * protect_thick;
-			Insert2DB::InsertReinforcingBar(BarType::SheadLinks, shearsShape, shearlinkDiameter, shear_insert_point, origin, sheardz, sheardx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::SheadLinks, shearsShape, shearlinkDiameter, shear_insert_point, origin, sheardz, sheardx, id);
 		
 		}
 		/**************处理腰筋以及拉筋*********/
@@ -575,7 +984,7 @@ void Component_Beam::CalculateBeam() {
 				side_insert_point.push_back({ sidex,sidey,-sidez });
 			}
 			//printf("%d", side_bar_info.diameter);
-			Insert2DB::InsertReinforcingBar(BarType::LongitudinalBarCurve, side_curve, double(side_bar_info.diameter), side_insert_point, origin, Topdz, Topdx, storey);
+			Insert2DB::InsertReinforcingBar(BarType::WaistBarCurve, side_curve, double(side_bar_info.diameter), side_insert_point, origin, Topdz, Topdx, id);
 			//插入 拉筋的位置与腰筋和箍筋类似
 			
 		}
@@ -586,7 +995,8 @@ void Component_Beam::CalculateBeam() {
 		bool flag = 0;
 		double adjust = 8;
 		int tmp = 0;
-		while (curpos<=shear_insert_point.back()[2]) {
+
+		while (!shear_insert_point.empty()&&curpos<=shear_insert_point.back()[2]) {
 			switch (row)
 			{
 			case 1:
@@ -606,6 +1016,7 @@ void Component_Beam::CalculateBeam() {
 					tied_insert_point.push_back({ 0,adjust + side_insert_point[0][1] * sqrt2 - curpos * sqrt2,  curpos * sqrt2 + side_insert_point[0][1] * sqrt2 });
 					tied_insert_point.push_back({ 0,adjust + side_insert_point[4][1] * sqrt2 - curpos * sqrt2,  curpos * sqrt2 + side_insert_point[4][1] * sqrt2 });
 				flag = !flag;
+				break;
 			}
 			default:
 				break;
@@ -622,16 +1033,22 @@ void Component_Beam::CalculateBeam() {
 			
 			
 		}
-		vector<double> tied_curve{ 5.0 * side_bar_info.diameter,2.0 * side_bar_info.diameter,width - 2.0 * protect_thick-4*shearlinkDiameter };
-		InsertReinforcingBar(BarType::TiedBarCurve, tied_curve, bar_info.Tied.diameter, tied_insert_point, origin, tieddz, tieddx, storey);
+		int tiediameter = 6;
+		if (width > 350) {
+			tiediameter = 8;
+		}
 		
-
-		
+		vector<double> tied_curve{ 5.0 * tiediameter ,2.0 * tiediameter ,width - 2.0 * protect_thick-4.0*shearlinkDiameter };
+		printf("%d %.1f\n",width, width - 2.0 * protect_thick - 4.0 * shearlinkDiameter);
+		printf("%d\n", id);
+		if (row > 0) {
+			Insert2DB::InsertReinforcingBar(BarType::TiedBarCurve, tied_curve, tiediameter, tied_insert_point, origin, tieddz, tieddx, id);
+		}
 		switch (type)
 		{
 		case SimplySupported:
 		{
-
+			handleSignal();
 			break;
 		}
 		case LeftCantilever: {
@@ -646,10 +1063,7 @@ void Component_Beam::CalculateBeam() {
 			//上左中部没有，可以暂时忽略，
 			// 处理上左 右部钢筋，此处包含了从当前跨到最右跨的钢筋
 			
-			
 			break;
-		
-			
 		case Internal: {//
 			HandleMid(i);
 			break;
@@ -663,10 +1077,15 @@ void Component_Beam::CalculateBeam() {
 		case RightCantilever: {
 			break;
 		}
+		//case RightWithoutColumn: {
+			//break;
+		//}
 		default:
 			break;
 		}
+		
 
 		curspanlen += spans_clear_len[i] + columns_len[i + 1];
 	}
+	GetID::localPlacementIDStack.pop_back();
 }

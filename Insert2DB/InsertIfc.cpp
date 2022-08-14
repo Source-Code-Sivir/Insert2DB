@@ -84,7 +84,7 @@ namespace Insert2DB {
 		}//（根2，-跟2）
 		int directionID = GetID::getDirectionID();
 		char* val = new char[100];
-		sprintf_s(val, 100, "%d,%.5f,%.5f,%.5f", directionID, direction[0], direction[1], direction[2]);
+		sprintf_s(val, 100, "%d,%.4f,%.4f,%.4f", directionID, direction[0], direction[1], direction[2]);
 		std::string command = GetInsertCommand("IfcDirection", val);
 		SqliteExecution::Instance()->insertDb(command);
 		delete[]val;
@@ -201,10 +201,10 @@ namespace Insert2DB {
 		int resid = -1;
 		switch (type)
 		{
-		case LongitudinalBarCurve:
+		case LongitudinalBarCurve :
 		{//5个参数 分别代表着左弯钩长度，左弯钩直径，长度，右弯钩直径，右弯钩长度
-			char res[50];
-			sprintf_s(res,50, "%.2f %.2f %.2f %.2f %.2f %d", curve[0], curve[1], curve[2], curve[3], curve[4], (int)diameter);
+			char res[100];
+			sprintf_s(res,100, "%.2f %.2f %.2f %.2f %.2f %d", curve[0], curve[1], curve[2], curve[3], curve[4], (int)diameter);
 			std::string rec(res);
 			if (longnitudal.count(rec)) {
 				return longnitudal[rec];
@@ -236,7 +236,49 @@ namespace Insert2DB {
 			}
 			int comid = InsertCompositeCurve(id);
 			char* val = new char[150];
-			sprintf_s(val, 150, "%d,%d,%.3f,%.3f,%.3f,%.3f", resid, comid, diameter, -1.0, -1.0, -1.0);
+			sprintf_s(val, 150, "%d,%d,%.3f,%.3f,%.3f,%.3f,%d", resid, comid, diameter, -1.0, -1.0, -1.0,int(type));
+			std::string command = GetInsertCommand("IfcSweptDiskSolid", val);
+			SqliteExecution::Instance()->insertDb(command);
+			delete[]val;
+			longnitudal[rec] = resid;
+			break;
+		}
+		case WaistBarCurve:
+		{//5个参数 分别代表着左弯钩长度，左弯钩直径，长度，右弯钩直径，右弯钩长度
+			char res[100];
+			sprintf_s(res, 100, "%.2f %.2f %.2f %.2f %.2f %d", curve[0], curve[1], curve[2], curve[3], curve[4], (int)diameter);
+			std::string rec(res);
+			if (longnitudal.count(rec)) {
+				return longnitudal[rec];
+			}
+			resid = GetID::getSweptDiskSolidID();
+			std::vector<int> id(5, -1);
+			for (int i = 0; i < 5; i++) {
+				id[i] = -1;//存储5段curve的id
+			}
+			if (curve[0] != 0) {
+				std::vector<double> point{ -4 * diameter,-4 * diameter - curve[0],0,0,1,0 };
+				id[0] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[0], point, true, 0);
+			}
+			if (curve[1] != 0) {
+				std::vector<double> point{ 0,-4 * diameter,0,0,0,-1,-1,0,0,double(diameter) * 4 };
+				id[1] = InsertTrimmedCurve(CurveType::Circle_Curve, 0, 1.571, point, true, 0);
+			}
+			if (curve[2] != 0) {
+				std::vector<double> point{ 0,0,0,1,0,0 };
+				id[2] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[2], point, true, 0);
+			}
+			if (curve[3] != 0) {
+				std::vector<double> point{ curve[2],-4 * diameter,0,0,0,1,1,0,0,double(diameter) * 4 };
+				id[3] = InsertTrimmedCurve(CurveType::Line_Curve, 1.57, 0, point, false, 0);
+			}
+			if (curve[4] != 0) {
+				std::vector<double> point{ curve[2] + 4 * diameter,-4 * diameter,0,0,-1,0 };
+				id[4] = InsertTrimmedCurve(CurveType::Line_Curve, 0, curve[4], point, true, 0);
+			}
+			int comid = InsertCompositeCurve(id);
+			char* val = new char[150];
+			sprintf_s(val, 150, "%d,%d,%.3f,%.3f,%.3f,%.3f,%d", resid, comid, diameter, -1.0, -1.0, -1.0, int(type));
 			std::string command = GetInsertCommand("IfcSweptDiskSolid", val);
 			SqliteExecution::Instance()->insertDb(command);
 			delete[]val;
@@ -245,7 +287,7 @@ namespace Insert2DB {
 		}
 		case SheadLinks: {
 			char rec[50];//验证箍筋形状参数，由3个值确定，短边长度，长边长度，弯钩半径，直径
-			sprintf_s(rec, 50, "%.2f,%.2f,%.2f,%d", curve[0], curve[1], curve[2], diameter);
+			sprintf_s(rec, 50, "%.2f,%.2f,%.2f,%d", curve[0], curve[1], curve[2], int(diameter));
 			if (shearLinksMap.count(rec)) {
 				return shearLinksMap[rec];
 			}
@@ -299,7 +341,7 @@ namespace Insert2DB {
 			int compoid = InsertCompositeCurve(id);
 			char* command = new char[200];
 			//printf("%f", diameter);
-			sprintf_s(command, 150, "insert into IfcSweptDiskSolid values(%d,%d,%.2f,%.2f,%.2f,%.2f);", resid, compoid, diameter, -1.0, -1.0, -1.0);
+			sprintf_s(command, 150, "insert into IfcSweptDiskSolid values(%d,%d,%.2f,%.2f,%.2f,%.2f,%d);", resid, compoid, diameter, -1.0, -1.0, -1.0, int(type));
 			//std::string command = GetInsertCommand("IfcSweptDiskSolid", val);
 			SqliteExecution::Instance()->insertDb(command);
 			delete[]command;
@@ -310,10 +352,11 @@ namespace Insert2DB {
 		{
 			std::vector<int>id(5, -1);
 			char tmp[50];
-			sprintf_s(tmp, "%d %d %d %d", curve[0], curve[1], curve[2], diameter);
+			sprintf_s(tmp, "%.2f %.2f %.2f %d", curve[0], curve[1], curve[2], int(diameter));
 			if (tiedBars.count(tmp)) {
 				return tiedBars[tmp];
 			}
+			tiedBars[tmp] = resid;
 			resid = GetID::getSweptDiskSolidID();
 			tiedBars[tmp] = resid;
 			curve[0] = 75;
@@ -338,7 +381,7 @@ namespace Insert2DB {
 			int compoid = InsertCompositeCurve(id);
 			char* command = new char[200];
 			//printf("%f", diameter);
-			sprintf_s(command, 150, "insert into IfcSweptDiskSolid values(%d,%d,%.2f,%.2f,%.2f,%.2f);", resid, compoid, diameter, -1.0, -1.0, -1.0);
+			sprintf_s(command, 150, "insert into IfcSweptDiskSolid values(%d,%d,%.2f,%.2f,%.2f,%.2f,%d);", resid, compoid, diameter, -1.0, -1.0, -1.0, int(type));
 			//std::string command = GetInsertCommand("IfcSweptDiskSolid", val);
 			SqliteExecution::Instance()->insertDb(command);
 			delete[]command;
@@ -359,7 +402,7 @@ namespace Insert2DB {
 		SqliteExecution::Instance()->insertDb(command);
 		return id;
 	}
-	int InsertReinforcingBar(BarType type, std::vector<double> &curve, double diameter, std::vector<std::vector<double>>point, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx,int ParentStoreyID)
+	int InsertReinforcingBar(BarType type, std::vector<double> &curve, double diameter, std::vector<std::vector<double>>point, std::vector<double>& origin, std::vector<double>& dz, std::vector<double>& dx,int ParentBeamID)
 	//对应插入钢筋的所有参数，除此之外还要记录钢筋的localPlacement，也就是相当于梁的坐标系位置emmm，localplacement是需要大代价弄的
 	{
 		int barid = GetID::GetReinforcingBarID();
@@ -374,19 +417,24 @@ namespace Insert2DB {
 			mappids.push_back(' ');
 		}
 		char command[3000];
+		//printf("%d", ParentStoreyID);
 		switch (type)
 		{
 		case LongitudinalBarCurve: {
-			sprintf_s(command,3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "Mainbar", localplacementid, mappids.data(),"C30",ParentStoreyID);
+			sprintf_s(command,3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "Mainbar", localplacementid, mappids.data(),"C30", ParentBeamID);
 			break;
 		}
 		case TiedBarCurve:
 		{
-			sprintf_s(command, 3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "TiedBar", localplacementid, mappids.data(), "C30", ParentStoreyID);
+			sprintf_s(command, 3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "TiedBar", localplacementid, mappids.data(), "C30", ParentBeamID);
 			break;
 		}
 		case SheadLinks: {
-			sprintf_s(command, 3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "ShearLink", localplacementid, mappids.data(), "C30", ParentStoreyID);
+			sprintf_s(command, 3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "ShearLink", localplacementid, mappids.data(), "C30", ParentBeamID);
+			break;
+		}
+		case WaistBarCurve: {
+			sprintf_s(command, 3000, "insert into IfcReinforcingBar values(%d,%d,'%s',%d,'%s','%s',%d);", barid, -1, "WaistBar", localplacementid, mappids.data(), "C30", ParentBeamID);
 			break;
 		}
 		default:
@@ -399,7 +447,7 @@ namespace Insert2DB {
 		int placementid = InsertPlacement3D(point, dz, dx);
 		char command[150];
 		int id = GetID::GetLocalPlacementID();
-		sprintf_s(command,50, "insert into IfcLocalPlacement values(%d,%d,%d);", id, parentLocalID, placementid);
+		sprintf_s(command,150, "insert into IfcLocalPlacement values(%d,%d,%d);", id, parentLocalID, placementid);
 		SqliteExecution::Instance()->insertDb(command);
 		return id;
 	}

@@ -14,6 +14,9 @@ public:
 		return &ins;
 	}
 	void Init(std::string file) {//在init的时候已经初始化了db了，所以直接调用就行了。
+		if (db != nullptr) {
+			closeDb();
+		}
 		int rc = sqlite3_open(file.data(),&db);
 		if (rc) {
 			fprintf(stderr, "error:cannot open database:%s\n", sqlite3_errmsg(db));
@@ -24,7 +27,6 @@ public:
 		}
 		sqlite3_exec(db, "begin;", 0, 0, 0);
 	}
-
 
 
 
@@ -76,7 +78,9 @@ public:
 		}
 	}
 private:
-	SqliteExecution() {};
+	SqliteExecution() {
+		db = nullptr;
+	};
 	~SqliteExecution() { closeDb(); };
 	sqlite3* db;
 };

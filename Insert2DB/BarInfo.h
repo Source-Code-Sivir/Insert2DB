@@ -12,6 +12,8 @@
 //#define BotRight BotInternalSupportBarInfo//下右
 //using point = std::vector<double>[3];
 //using direction = std::vector<double>[3];
+typedef std::vector<double> Point;
+typedef std::vector<double> Direction;
 
 class Building {
 public:
@@ -51,7 +53,6 @@ struct ShearLinkInfo
 typedef BasicBarInfo TiedBarInfo;
 class SpanBarInfo {
 public:
-	//为什么起这么拗口的名字，自己去问邓老师,我自己定义了别名没用这名字
 	LongitudinalBarInfo TopLeft;//上左
 	LongitudinalBarInfo TopMid;//上中
 	LongitudinalBarInfo TopRight;//上右
@@ -73,11 +74,14 @@ public:
 };
 class SpanInfo {//默认沿z轴延伸哈
 public:
+	int xstartoffset, xendoffset, ystartoffset, yendoffset;
 	SpanBarInfo span_bar_info;
 	SpanType span_type;
+	int pt1Type, pt2Type;
 };
-class Component_Beam:public Component {
+class Component_Beam:public Component {//从数据库里来的参数，还有columnslen没有确定
 public:
+	int id;
 	std::vector<SpanInfo> spans_info;
 	std::vector<double> columns_len;
 	std::vector<double>spans_clear_len;
@@ -98,11 +102,16 @@ public:
 	void handleInternal(int i);
 	void handleRightSide();
 	void CalculateBar();//计算钢筋的形状，位置参数
+	void handleSignal();
+	inline void handlecolumn();
 };
-struct Point {
-	double x, y, z;
+class Component_Column:public Component {
+	int ptID;
+	int xstartoffser, xendoffset, ystartoddset, yendoffset;
+	
+	Shape* section;
+	int width, height;
+	
 };
-typedef Point Direction;
-
 #endif // !BARINFOR_H
 

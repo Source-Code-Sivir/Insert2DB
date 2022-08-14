@@ -23,6 +23,7 @@
     <ClInclude Include="enum.h" />
     <ClInclude Include="GetCodePara.h" />
     <ClInclude Include="GetID.h" />
+    <ClInclude Include="GetModelInfo.h" />
     <ClInclude Include="insertIfc.h" />
     <ClInclude Include="Shape.h" />
     <ClInclude Include="sqlBag.h" />
@@ -32,6 +33,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CalculateIfc.cpp" />
+    <ClCompile Include="GetModelInfo.cpp" />
     <ClCompile Include="InsertIfc.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>

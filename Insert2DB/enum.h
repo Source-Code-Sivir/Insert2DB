@@ -13,12 +13,13 @@ enum ComponentType {
 	Beam,Slab,Wall,Column
 };
 enum SpanType {
-	SimplySupported,
+	SimplySupported=1,
 	LeftCantilever,
 	LeftSide,
 	Internal,
 	RightSide,
-	RightCantilever
+	RightCantilever,
+	WithoutColumn
 };
 enum ConcreteType {
 	C20,C25,C30,C35,C40,C45,C50,C55,C60
@@ -37,7 +38,7 @@ enum BarType {
 	LongitudinalBarCurve = 1,
 	TiedBarCurve,
 	SheadLinks,
-	WaistBar
+	WaistBarCurve
 };
 enum CurveType {
 	Line_Curve = 1,
